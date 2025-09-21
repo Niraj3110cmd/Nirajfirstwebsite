@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Data Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .card h3 {
+            margin: 0 0 10px 0;
+            color: #555;
+        }
+        
+        .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .timestamp {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .data-table {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        
+        .status-online {
+            color: #28a745;
+        }
+        
+        .status-offline {
+            color: #dc3545;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0 10px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        #exportData {
+            background-color: #28a745;
+        }
+        
+        #exportData:hover {
+            background-color: #1e7e34;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-Time Data Dashboard</h1>
+        
+        <div class="controls">
+            <button onclick="toggleDataCollection()">Start Data Collection</button>
+            <button id="exportData" onclick="exportData()">Check Power BI Connection</button>
+        </div>
+        
+        <div class="dashboard">
+            <div class="card">
+                <h3>Total Sales</h3>
+                <div class="value" id="totalSales">$0</div>
+                <div class="timestamp" id="salesTimestamp">Last updated: Never</div>
+            </div>
+            
+            <div class="card">
+                <h3>Active Users</h3>
+                <div class="value" id="activeUsers">0</div>
+                <div class="timestamp" id="usersTimestamp">Last updated: Never</div>
+            </div>
+            
+            <div class="card">
+                <h3>System Status</h3>
+                <div class="value status-online" id="systemStatus">Online</div>
+                <div class="timestamp" id="statusTimestamp">Last updated: Never</div>
+            </div>
+            
+            <div class="card">
+                <h3>Temperature</h3>
+                <div class="value" id="temperature">23°C</div>
+                <div class="timestamp" id="tempTimestamp">Last updated: Never</div>
+            </div>
+        </div>
+        
+        <div class="data-table">
+            <h3 style="padding: 20px 20px 0 20px; margin: 0; background: white;">Power BI Data Feed</h3>
+            <table id="powerbi-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>TotalSales</th>
+                        <th>ActiveUsers</th>
+                        <th>SystemStatus</th>
+                        <th>Temperature</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <!-- Power BI will read this table -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Global variables to store our data
+        let dataCollection = [];
+        let isCollecting = false;
+        let dataInterval;
+        
+        // Simulate real-time data generation
+        function generateRandomData() {
+            return {
+                timestamp: new Date().toISOString(),
+                totalSales: Math.floor(Math.random() * 10000) + 5000,
+                activeUsers: Math.floor(Math.random() * 500) + 100,
+                systemStatus: Math.random() > 0.1 ? 'Online' : 'Offline',
+                temperature: Math.floor(Math.random() * 15) + 18
+            };
+        }
+        
+        // Update the dashboard with new data
+        function updateDashboard(data) {
+            document.getElementById('totalSales').textContent = '$' + data.totalSales.toLocaleString();
+            document.getElementById('activeUsers').textContent = data.activeUsers;
+            document.getElementById('systemStatus').textContent = data.systemStatus;
+            document.getElementById('temperature').textContent = data.temperature + '°C';
+            
+            // Update timestamps
+            const now = new Date().toLocaleString();
+            document.getElementById('salesTimestamp').textContent = 'Last updated: ' + now;
+            document.getElementById('usersTimestamp').textContent = 'Last updated: ' + now;
+            document.getElementById('statusTimestamp').textContent = 'Last updated: ' + now;
+            document.getElementById('tempTimestamp').textContent = 'Last updated: ' + now;
+            
+            // Update system status color
+            const statusElement = document.getElementById('systemStatus');
+            if (data.systemStatus === 'Online') {
+                statusElement.className = 'value status-online';
+            } else {
+                statusElement.className = 'value status-offline';
+            }
+        }
+        
+        // Add data to the table (formatted for Power BI)
+        function addDataToTable(data) {
+            const tableBody = document.getElementById('dataTableBody');
+            const row = tableBody.insertRow(0); // Insert at the top
+            
+            row.insertCell(0).textContent = new Date(data.timestamp).toLocaleString();
+            row.insertCell(1).textContent = data.totalSales;
+            row.insertCell(2).textContent = data.activeUsers;
+            row.insertCell(3).textContent = data.systemStatus;
+            row.insertCell(4).textContent = data.temperature;
+            
+            // Keep the last 50 rows for Power BI to read
+            while (tableBody.rows.length > 50) {
+                tableBody.deleteRow(tableBody.rows.length - 1);
+            }
+            
+            // Update Power BI endpoint
+            createDataEndpoint();
+        }
+        
+        // Toggle data collection
+        function toggleDataCollection() {
+            const button = event.target;
+            
+            if (!isCollecting) {
+                isCollecting = true;
+                button.textContent = 'Stop Data Collection';
+                
+                // Collect data every 3 seconds
+                dataInterval = setInterval(() => {
+                    const newData = generateRandomData();
+                    dataCollection.push(newData);
+                    updateDashboard(newData);
+                    addDataToTable(newData);
+                }, 3000);
+                
+                // Generate initial data
+                const initialData = generateRandomData();
+                dataCollection.push(initialData);
+                updateDashboard(initialData);
+                addDataToTable(initialData);
+                
+            } else {
+                isCollecting = false;
+                button.textContent = 'Start Data Collection';
+                clearInterval(dataInterval);
+            }
+        }
+        
+        // Create Power BI endpoint data
+        function getPowerBIData() {
+            return dataCollection;
+        }
+        
+        // Create API endpoint for Power BI to consume
+        function createDataEndpoint() {
+            // This creates a JSON endpoint that Power BI can read
+            const dataDiv = document.getElementById('powerbi-data');
+            if (!dataDiv) {
+                const div = document.createElement('div');
+                div.id = 'powerbi-data';
+                div.style.display = 'none';
+                document.body.appendChild(div);
+            }
+            
+            // Update the hidden div with JSON data
+            document.getElementById('powerbi-data').textContent = JSON.stringify(dataCollection);
+        }
+        
+        // Export current data view for Power BI
+        function exportData() {
+            if (dataCollection.length === 0) {
+                alert('No data available. Start data collection first!');
+                return;
+            }
+            
+            alert(`Data is ready for Power BI connection! 
+            
+Current data points: ${dataCollection.length}
+            
+To connect in Power BI:
+1. Get Data → Web
+2. Use this page's URL
+3. Power BI will automatically detect the data table`);
+        }
+        
+        // Initialize with some sample data on page load
+        window.onload = function() {
+            const sampleData = generateRandomData();
+            updateDashboard(sampleData);
+            addDataToTable(sampleData);
+        };
+    </script>
+</body>
+</html>
