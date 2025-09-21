@@ -210,17 +210,21 @@
         // Add data to the table (formatted for Power BI)
         function addDataToTable(data) {
             const tableBody = document.getElementById('dataTableBody');
-            const row = tableBody.insertRow(0); // Insert at the top
             
-            row.insertCell(0).textContent = new Date(data.timestamp).toLocaleString();
-            row.insertCell(1).textContent = data.totalSales;
-            row.insertCell(2).textContent = data.activeUsers;
-            row.insertCell(3).textContent = data.systemStatus;
-            row.insertCell(4).textContent = data.temperature;
+            // Add ALL historical data to the table for Power BI
+            // Clear the table first
+            tableBody.innerHTML = '';
             
-            // Keep the last 50 rows for Power BI to read
-            while (tableBody.rows.length > 50) {
-                tableBody.deleteRow(tableBody.rows.length - 1);
+            // Add all data from our collection (newest first)
+            for (let i = dataCollection.length - 1; i >= 0; i--) {
+                const rowData = dataCollection[i];
+                const row = tableBody.insertRow();
+                
+                row.insertCell(0).textContent = new Date(rowData.timestamp).toLocaleString();
+                row.insertCell(1).textContent = rowData.totalSales;
+                row.insertCell(2).textContent = rowData.activeUsers;
+                row.insertCell(3).textContent = rowData.systemStatus;
+                row.insertCell(4).textContent = rowData.temperature;
             }
             
             // Update Power BI endpoint
