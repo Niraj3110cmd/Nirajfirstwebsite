@@ -54,29 +54,6 @@
             margin-top: 10px;
         }
         
-        .data-table {
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-        
-        th {
-            background-color: #f8f9fa;
-            font-weight: bold;
-        }
-        
         .status-online {
             color: #28a745;
         }
@@ -104,22 +81,94 @@
             background-color: #0056b3;
         }
         
-        #exportData {
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        #statusMessage {
             background-color: #28a745;
         }
         
-        #exportData:hover {
-            background-color: #1e7e34;
+        .status-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .status-box h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .status-success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .url-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .data-log {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            padding: 5px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-left: 3px solid #007bff;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .log-success {
+            border-left-color: #28a745;
+        }
+        
+        .log-error {
+            border-left-color: #dc3545;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Real-Time Data Dashboard</h1>
+        <h1>Real-Time Data Dashboard with Power BI Streaming</h1>
+        
+        <div class="status-box">
+            <h3>Power BI Configuration</h3>
+            <input type="text" id="powerBiUrl" class="url-input" placeholder="Paste your Power BI Push URL here">
+            <button onclick="savePowerBiUrl()">Save Power BI URL</button>
+            <div id="urlStatus"></div>
+        </div>
         
         <div class="controls">
-            <button onclick="toggleDataCollection()">Start Data Collection</button>
-            <button id="exportData" onclick="exportData()">Check Power BI Connection</button>
+            <button onclick="toggleDataCollection()" id="toggleButton">Start Data Collection</button>
+            <button onclick="sendTestData()" id="testButton" disabled>Send Test Data to Power BI</button>
+        </div>
+        
+        <div class="status-box">
+            <h3>Connection Status</h3>
+            <div id="connectionStatus">Not connected to Power BI</div>
+            <div id="dataCount">Data points sent: 0</div>
         </div>
         
         <div class="dashboard">
@@ -148,48 +197,53 @@
             </div>
         </div>
         
-        <div class="data-table">
-            <h3 style="padding: 20px 20px 0 20px; margin: 0; background: white;">Power BI Data Feed</h3>
-            <table id="powerbi-table">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>TotalSales</th>
-                        <th>ActiveUsers</th>
-                        <th>SystemStatus</th>
-                        <th>Temperature</th>
-                    </tr>
-                </thead>
-                <tbody id="dataTableBody">
-                    <!-- Power BI will read this table -->
-                </tbody>
-            </table>
+        <div class="data-log">
+            <h3>Activity Log</h3>
+            <div id="logContainer"></div>
         </div>
     </div>
 
     <script>
-        // Global variables to store our data
-        let dataCollection = [];
+        // Global variables
         let isCollecting = false;
         let dataInterval;
+        let powerBiUrl = '';
+        let dataSentCount = 0;
         
-        // Simulate real-time data generation
+        // Save Power BI URL
+        function savePowerBiUrl() {
+            const urlInput = document.getElementById('powerBiUrl');
+            const url = urlInput.value.trim();
+            
+            if (url && url.includes('api.powerbi.com')) {
+                powerBiUrl = url;
+                document.getElementById('urlStatus').innerHTML = '<span class="status-success">✓ Power BI URL saved successfully</span>';
+                document.getElementById('testButton').disabled = false;
+                document.getElementById('connectionStatus').innerHTML = '<span class="status-success">Ready to send data to Power BI</span>';
+                logMessage('Power BI URL configured successfully', 'success');
+            } else {
+                document.getElementById('urlStatus').innerHTML = '<span class="status-error">✗ Invalid Power BI URL</span>';
+                logMessage('Invalid Power BI URL provided', 'error');
+            }
+        }
+        
+        // Generate random data
         function generateRandomData() {
             return {
-                timestamp: new Date().toISOString(),
-                totalSales: Math.floor(Math.random() * 10000) + 5000,
-                activeUsers: Math.floor(Math.random() * 500) + 100,
-                systemStatus: Math.random() > 0.1 ? 'Online' : 'Offline',
-                temperature: Math.floor(Math.random() * 15) + 18
+                Timestamp: new Date().toISOString(),
+                TotalSales: Math.floor(Math.random() * 10000) + 5000,
+                ActiveUsers: Math.floor(Math.random() * 500) + 100,
+                SystemStatus: Math.random() > 0.1 ? 'Online' : 'Offline',
+                Temperature: Math.floor(Math.random() * 15) + 18
             };
         }
         
-        // Update the dashboard with new data
+        // Update dashboard display
         function updateDashboard(data) {
-            document.getElementById('totalSales').textContent = '$' + data.totalSales.toLocaleString();
-            document.getElementById('activeUsers').textContent = data.activeUsers;
-            document.getElementById('systemStatus').textContent = data.systemStatus;
-            document.getElementById('temperature').textContent = data.temperature + '°C';
+            document.getElementById('totalSales').textContent = '$' + data.TotalSales.toLocaleString();
+            document.getElementById('activeUsers').textContent = data.ActiveUsers;
+            document.getElementById('systemStatus').textContent = data.SystemStatus;
+            document.getElementById('temperature').textContent = data.Temperature + '°C';
             
             // Update timestamps
             const now = new Date().toLocaleString();
@@ -200,102 +254,113 @@
             
             // Update system status color
             const statusElement = document.getElementById('systemStatus');
-            if (data.systemStatus === 'Online') {
+            if (data.SystemStatus === 'Online') {
                 statusElement.className = 'value status-online';
             } else {
                 statusElement.className = 'value status-offline';
             }
         }
         
-        // Add data to the table (formatted for Power BI)
-        function addDataToTable(data) {
-            const tableBody = document.getElementById('dataTableBody');
-            const row = tableBody.insertRow(0); // Insert at the top
+        // Send data to Power BI
+        async function sendToPowerBI(data) {
+            if (!powerBiUrl) {
+                logMessage('Power BI URL not configured', 'error');
+                return false;
+            }
             
-            row.insertCell(0).textContent = new Date(data.timestamp).toLocaleString();
-            row.insertCell(1).textContent = data.totalSales;
-            row.insertCell(2).textContent = data.activeUsers;
-            row.insertCell(3).textContent = data.systemStatus;
-            row.insertCell(4).textContent = data.temperature;
+            try {
+                const response = await fetch(powerBiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify([data])
+                });
+                
+                if (response.ok) {
+                    dataSentCount++;
+                    document.getElementById('dataCount').textContent = `Data points sent: ${dataSentCount}`;
+                    document.getElementById('connectionStatus').innerHTML = '<span class="status-success">✓ Connected and sending data</span>';
+                    logMessage(`Data sent successfully: Sales=$${data.TotalSales}, Users=${data.ActiveUsers}, Status=${data.SystemStatus}`, 'success');
+                    return true;
+                } else {
+                    logMessage(`Error sending data: ${response.status} - ${response.statusText}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                logMessage(`Network error: ${error.message}`, 'error');
+                document.getElementById('connectionStatus').innerHTML = '<span class="status-error">✗ Connection error</span>';
+                return false;
+            }
+        }
+        
+        // Log messages
+        function logMessage(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logContainer.insertBefore(logEntry, logContainer.firstChild);
             
-            // Keep all rows (no deletion) for Power BI to read all historical data
-            // Power BI will read all rows in the table
-            
-            // Update Power BI endpoint
-            createDataEndpoint();
+            // Keep only last 20 log entries
+            while (logContainer.children.length > 20) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
         }
         
         // Toggle data collection
         function toggleDataCollection() {
-            const button = event.target;
+            const button = document.getElementById('toggleButton');
             
             if (!isCollecting) {
+                if (!powerBiUrl) {
+                    alert('Please configure your Power BI URL first!');
+                    return;
+                }
+                
                 isCollecting = true;
                 button.textContent = 'Stop Data Collection';
                 
-                // Collect data every 3 seconds
-                dataInterval = setInterval(() => {
+                // Send data every 5 seconds
+                dataInterval = setInterval(async () => {
                     const newData = generateRandomData();
-                    dataCollection.push(newData);
                     updateDashboard(newData);
-                    addDataToTable(newData);
-                }, 3000);
+                    await sendToPowerBI(newData);
+                }, 5000);
                 
-                // Generate initial data
+                // Send initial data
                 const initialData = generateRandomData();
-                dataCollection.push(initialData);
                 updateDashboard(initialData);
-                addDataToTable(initialData);
+                sendToPowerBI(initialData);
+                
+                logMessage('Data collection started', 'success');
                 
             } else {
                 isCollecting = false;
                 button.textContent = 'Start Data Collection';
                 clearInterval(dataInterval);
+                logMessage('Data collection stopped', 'info');
             }
         }
         
-        // Create Power BI endpoint data
-        function getPowerBIData() {
-            return dataCollection;
-        }
-        
-        // Create API endpoint for Power BI to consume
-        function createDataEndpoint() {
-            // This creates a JSON endpoint that Power BI can read
-            const dataDiv = document.getElementById('powerbi-data');
-            if (!dataDiv) {
-                const div = document.createElement('div');
-                div.id = 'powerbi-data';
-                div.style.display = 'none';
-                document.body.appendChild(div);
+        // Send test data
+        async function sendTestData() {
+            const testData = generateRandomData();
+            updateDashboard(testData);
+            const success = await sendToPowerBI(testData);
+            
+            if (success) {
+                alert('Test data sent successfully to Power BI!');
+            } else {
+                alert('Failed to send test data. Check the activity log for details.');
             }
-            
-            // Update the hidden div with JSON data
-            document.getElementById('powerbi-data').textContent = JSON.stringify(dataCollection);
         }
         
-        // Export current data view for Power BI
-        function exportData() {
-            if (dataCollection.length === 0) {
-                alert('No data available. Start data collection first!');
-                return;
-            }
-            
-            alert(`Data is ready for Power BI connection! 
-            
-Current data points: ${dataCollection.length}
-            
-To connect in Power BI:
-1. Get Data → Web
-2. Use this page's URL
-3. Power BI will automatically detect the data table`);
-        }
-        
-        // Initialize with some sample data on page load
+        // Initialize
         window.onload = function() {
             const sampleData = generateRandomData();
             updateDashboard(sampleData);
-            addDataToTable(sampleData);
+            logMessage('Dashboard initialized', 'info');
         };
     </script>
 </body>
